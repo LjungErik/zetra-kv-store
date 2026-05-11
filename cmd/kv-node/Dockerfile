@@ -5,8 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /kv-node ./cmd/kv-node
 
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates
-WORKDIR /app
-COPY --from=builder /kv-node /app/kv-node
-ENTRYPOINT ["/app/kv-node"]
+FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /kv-node /kv-node
+ENTRYPOINT ["/kv-node"]

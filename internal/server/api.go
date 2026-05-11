@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -45,6 +45,6 @@ func (hs *HTTPServer) getValue(rw http.ResponseWriter, request *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(data); err != nil {
-		log.Printf("failed to write response: %v", err)
+		slog.Error("failed to write response", "error", err)
 	}
 }

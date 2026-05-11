@@ -1,10 +1,12 @@
 package raft
 
 import (
+	"io"
 	"net"
 	"os"
 	"path"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
@@ -16,6 +18,12 @@ func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server,
 
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(id)
+	raftConfig.Logger = hclog.New(&hclog.LoggerOptions{
+		Name:       "raft",
+		Level:      hclog.Info,
+		Output:     os.Stdout,
+		JSONFormat: true,
+	})
 
 	if cfg.HeartbeatTimeout > 0 {
 		raftConfig.HeartbeatTimeout = cfg.HeartbeatTimeout
@@ -41,7 +49,7 @@ func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server,
 		return nil, err
 	}
 
-	transport, err := raft.NewTCPTransport(bindAddr, advertiseTCPAddr, cfg.MaxPool, cfg.Timeout, os.Stderr)
+	transport, err := raft.NewTCPTransport(bindAddr, advertiseTCPAddr, cfg.MaxPool, cfg.Timeout, io.Discard)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +64,7 @@ func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server,
 		return nil, err
 	}
 
-	snapshots, err := raft.NewFileSnapshotStore(dataDir, cfg.SnapshotsToRetain, os.Stderr)
+	snapshots, err := raft.NewFileSnapshotStore(dataDir, cfg.SnapshotsToRetain, io.Discard)
 	if err != nil {
 		return nil, err
 	}

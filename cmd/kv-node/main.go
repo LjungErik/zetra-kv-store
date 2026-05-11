@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,12 +18,21 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
 
-	log.Printf("starting node %s (raft: %s, http: %s)", cfg.Node.ID, cfg.Node.RaftAdvertiseAddr, cfg.Node.HTTPAddr)
+	slog.Info("starting node",
+		"id", cfg.Node.ID,
+		"raft_addr", cfg.Node.RaftAdvertiseAddr,
+		"http_addr", cfg.Node.HTTPAddr,
+	)
 
 	kvstore := store.NewKVStore()
 
@@ -46,7 +56,7 @@ func main() {
 		TrailingLogs:      cfg.Raft.TrailingLogs,
 	}
 
-	log.Println("setting up raft server...")
+	slog.Info("setting up raft")
 
 	raftInstance, err := raft_internal.SetupRaft(
 		cfg.Node.ID,
@@ -58,21 +68,35 @@ func main() {
 		raftCfg,
 	)
 	if err != nil {
-		log.Fatalf("failed to setup raft: %v", err)
+		slog.Error("failed to setup raft", "error", err)
+		os.Exit(1)
 	}
 
 	kvstore.SetRaft(raftInstance)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		raft_internal.WatchEvents(ctx, raftInstance)
+	}()
 
 	httpServer := server.NewServer(server.Config{
 		Addr:  cfg.Node.HTTPAddr,
 		Store: kvstore,
 	})
 
-	log.Println("starting http server...")
+	slog.Info("starting http server", "addr", cfg.Node.HTTPAddr)
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal(err)
+			slog.Error("http server error", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -80,14 +104,20 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down...")
+	slog.Info("shutting down")
+	cancel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Fatal("forced shutdown:", err)
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("http server forced shutdown", "error", err)
 	}
 
-	log.Println("server stopped")
+	if err := raftInstance.Shutdown().Error(); err != nil {
+		slog.Error("raft shutdown error", "error", err)
+	}
+
+	wg.Wait()
+	slog.Info("server stopped")
 }
