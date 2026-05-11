@@ -4,28 +4,44 @@ import (
 	"net"
 	"os"
 	"path"
-	"time"
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
-const (
-	defaultMaxPool           = 3
-	defaultTimeout           = 10 * time.Second
-	defaultSnapshotsToRetain = 2
-)
+func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server, fsm raft.FSM, cfg SetupConfig) (*raft.Raft, error) {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, err
+	}
 
-func SetupRaft(id, addr, dataDir string, peers []raft.Server, fsm raft.FSM) (*raft.Raft, error) {
-	config := raft.DefaultConfig()
-	config.LocalID = raft.ServerID(id)
+	raftConfig := raft.DefaultConfig()
+	raftConfig.LocalID = raft.ServerID(id)
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if cfg.HeartbeatTimeout > 0 {
+		raftConfig.HeartbeatTimeout = cfg.HeartbeatTimeout
+	}
+	if cfg.ElectionTimeout > 0 {
+		raftConfig.ElectionTimeout = cfg.ElectionTimeout
+	}
+	if cfg.CommitTimeout > 0 {
+		raftConfig.CommitTimeout = cfg.CommitTimeout
+	}
+	if cfg.SnapshotInterval > 0 {
+		raftConfig.SnapshotInterval = cfg.SnapshotInterval
+	}
+	if cfg.SnapshotThreshold > 0 {
+		raftConfig.SnapshotThreshold = cfg.SnapshotThreshold
+	}
+	if cfg.TrailingLogs > 0 {
+		raftConfig.TrailingLogs = cfg.TrailingLogs
+	}
+
+	advertiseTCPAddr, err := net.ResolveTCPAddr("tcp", advertiseAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, err := raft.NewTCPTransport(addr, tcpAddr, defaultMaxPool, defaultTimeout, os.Stderr)
+	transport, err := raft.NewTCPTransport(bindAddr, advertiseTCPAddr, cfg.MaxPool, cfg.Timeout, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -40,21 +56,17 @@ func SetupRaft(id, addr, dataDir string, peers []raft.Server, fsm raft.FSM) (*ra
 		return nil, err
 	}
 
-	snapshots, err := raft.NewFileSnapshotStore(dataDir, defaultSnapshotsToRetain, os.Stderr)
+	snapshots, err := raft.NewFileSnapshotStore(dataDir, cfg.SnapshotsToRetain, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := raft.NewRaft(config, fsm, logStore, stableStore, snapshots, transport)
+	r, err := raft.NewRaft(raftConfig, fsm, logStore, stableStore, snapshots, transport)
 	if err != nil {
 		return nil, err
 	}
 
-	configuration := raft.Configuration{
-		Servers: peers,
-	}
-
-	r.BootstrapCluster(configuration)
+	r.BootstrapCluster(raft.Configuration{Servers: peers})
 
 	return r, nil
 }

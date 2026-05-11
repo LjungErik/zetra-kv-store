@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,54 +9,64 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/LjungErik/zetra-kv-store/internal/config"
 	raft_internal "github.com/LjungErik/zetra-kv-store/internal/raft"
 	"github.com/LjungErik/zetra-kv-store/internal/server"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
 	"github.com/hashicorp/raft"
 )
 
-func getEnvOrDefault(key, defaultValue string) string {
-	val := os.Getenv(key)
-	if val == "" {
-		return defaultValue
-	}
-
-	return val
-}
-
 func main() {
-	var kvstore = store.NewKVStore()
-	var peers = []raft.Server{
-		{ID: "node1", Address: "127.0.0.1:7001"},
-		{ID: "node2", Address: "127.0.0.1:7002"},
-		{ID: "node3", Address: "127.0.0.1:7003"},
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	var id = getEnvOrDefault("NODE_ID", "node1")
-	var ip = getEnvOrDefault("NODE_IP", "127.0.0.1")
-	var port = getEnvOrDefault("NODE_PORT", "7001")
-	var http_ip = getEnvOrDefault("NODE_HTTP_IP", "127.0.0.1")
-	var http_port = getEnvOrDefault("NODE_HTTP_PORT", "8081")
-	var dataDir = getEnvOrDefault("NODE_DATA_DIR", "/tmp/node1-data")
+	log.Printf("starting node %s (raft: %s, http: %s)", cfg.Node.ID, cfg.Node.RaftAdvertiseAddr, cfg.Node.HTTPAddr)
 
-	var addr = fmt.Sprintf("%s:%s", ip, port)
-	var http_addr = fmt.Sprintf("%s:%s", http_ip, http_port)
+	kvstore := store.NewKVStore()
+
+	peers := make([]raft.Server, len(cfg.Cluster.Peers))
+	for i, p := range cfg.Cluster.Peers {
+		peers[i] = raft.Server{
+			ID:      raft.ServerID(p.ID),
+			Address: raft.ServerAddress(p.Address),
+		}
+	}
+
+	raftCfg := raft_internal.SetupConfig{
+		MaxPool:           cfg.Raft.MaxPool,
+		Timeout:           cfg.Raft.Timeout,
+		SnapshotsToRetain: cfg.Raft.SnapshotsToRetain,
+		HeartbeatTimeout:  cfg.Raft.HeartbeatTimeout,
+		ElectionTimeout:   cfg.Raft.ElectionTimeout,
+		CommitTimeout:     cfg.Raft.CommitTimeout,
+		SnapshotInterval:  cfg.Raft.SnapshotInterval,
+		SnapshotThreshold: cfg.Raft.SnapshotThreshold,
+		TrailingLogs:      cfg.Raft.TrailingLogs,
+	}
 
 	log.Println("setting up raft server...")
 
-	raftInstance, err := raft_internal.SetupRaft(id, addr, dataDir, peers, kvstore)
+	raftInstance, err := raft_internal.SetupRaft(
+		cfg.Node.ID,
+		cfg.Node.RaftBindAddr,
+		cfg.Node.RaftAdvertiseAddr,
+		cfg.Node.DataDir,
+		peers,
+		kvstore,
+		raftCfg,
+	)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to setup raft: %v", err)
 	}
 
 	kvstore.SetRaft(raftInstance)
 
-	cfg := server.Config{
-		Addr:  http_addr,
+	httpServer := server.NewServer(server.Config{
+		Addr:  cfg.Node.HTTPAddr,
 		Store: kvstore,
-	}
-
-	var httpServer = server.NewServer(cfg)
+	})
 
 	log.Println("starting http server...")
 
@@ -69,7 +78,6 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	<-quit
 
 	log.Println("shutting down...")

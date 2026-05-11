@@ -1,0 +1,67 @@
+services:
+  node1:
+    build:
+      context: .
+      dockerfile: cmd/kv-node/Dockerfile
+    image: zetra-kv-store:latest
+    environment:
+      - ZETRA_NODE_ID=node1
+      - ZETRA_NODE_RAFT_BIND_ADDR=0.0.0.0:7001
+      - ZETRA_NODE_RAFT_ADVERTISE_ADDR=node1:7001
+      - ZETRA_NODE_HTTP_ADDR=0.0.0.0:8081
+      - ZETRA_NODE_DATA_DIR=/data
+    volumes:
+      - node1-data:/data
+      - ./config/config.yaml:/app/config.yaml:ro
+    ports:
+      - "7001:7001"
+      - "8081:8081"
+    networks:
+      - kv-net
+
+  node2:
+    image: zetra-kv-store:latest
+    environment:
+      - ZETRA_NODE_ID=node2
+      - ZETRA_NODE_RAFT_BIND_ADDR=0.0.0.0:7002
+      - ZETRA_NODE_RAFT_ADVERTISE_ADDR=node2:7002
+      - ZETRA_NODE_HTTP_ADDR=0.0.0.0:8082
+      - ZETRA_NODE_DATA_DIR=/data
+    volumes:
+      - node2-data:/data
+      - ./config/config.yaml:/app/config.yaml:ro
+    ports:
+      - "7002:7002"
+      - "8082:8082"
+    networks:
+      - kv-net
+    depends_on:
+      - node1
+
+  node3:
+    image: zetra-kv-store:latest
+    environment:
+      - ZETRA_NODE_ID=node3
+      - ZETRA_NODE_RAFT_BIND_ADDR=0.0.0.0:7003
+      - ZETRA_NODE_RAFT_ADVERTISE_ADDR=node3:7003
+      - ZETRA_NODE_HTTP_ADDR=0.0.0.0:8083
+      - ZETRA_NODE_DATA_DIR=/data
+    volumes:
+      - node3-data:/data
+      - ./config/config.yaml:/app/config.yaml:ro
+    ports:
+      - "7003:7003"
+      - "8083:8083"
+    networks:
+      - kv-net
+    depends_on:
+      - node1
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:
+
+networks:
+  kv-net:
+    driver: bridge
