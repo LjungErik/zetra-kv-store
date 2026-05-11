@@ -25,6 +25,10 @@ func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server,
 		JSONFormat: true,
 	})
 
+	if cfg.LeaderLeaseTimeout > 0 {
+		raftConfig.LeaderLeaseTimeout = cfg.LeaderLeaseTimeout
+	}
+
 	if cfg.HeartbeatTimeout > 0 {
 		raftConfig.HeartbeatTimeout = cfg.HeartbeatTimeout
 	}

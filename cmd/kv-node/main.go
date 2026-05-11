@@ -45,15 +45,16 @@ func main() {
 	}
 
 	raftCfg := raft_internal.SetupConfig{
-		MaxPool:           cfg.Raft.MaxPool,
-		Timeout:           cfg.Raft.Timeout,
-		SnapshotsToRetain: cfg.Raft.SnapshotsToRetain,
-		HeartbeatTimeout:  cfg.Raft.HeartbeatTimeout,
-		ElectionTimeout:   cfg.Raft.ElectionTimeout,
-		CommitTimeout:     cfg.Raft.CommitTimeout,
-		SnapshotInterval:  cfg.Raft.SnapshotInterval,
-		SnapshotThreshold: cfg.Raft.SnapshotThreshold,
-		TrailingLogs:      cfg.Raft.TrailingLogs,
+		MaxPool:            cfg.Raft.MaxPool,
+		Timeout:            cfg.Raft.Timeout,
+		SnapshotsToRetain:  cfg.Raft.SnapshotsToRetain,
+		LeaderLeaseTimeout: cfg.Raft.LeaderLeaseTimeout,
+		HeartbeatTimeout:   cfg.Raft.HeartbeatTimeout,
+		ElectionTimeout:    cfg.Raft.ElectionTimeout,
+		CommitTimeout:      cfg.Raft.CommitTimeout,
+		SnapshotInterval:   cfg.Raft.SnapshotInterval,
+		SnapshotThreshold:  cfg.Raft.SnapshotThreshold,
+		TrailingLogs:       cfg.Raft.TrailingLogs,
 	}
 
 	slog.Info("setting up raft")

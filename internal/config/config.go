@@ -22,15 +22,16 @@ type NodeConfig struct {
 }
 
 type RaftConfig struct {
-	MaxPool           int           `mapstructure:"max_pool"`
-	Timeout           time.Duration `mapstructure:"timeout"`
-	SnapshotsToRetain int           `mapstructure:"snapshots_to_retain"`
-	HeartbeatTimeout  time.Duration `mapstructure:"heartbeat_timeout"`
-	ElectionTimeout   time.Duration `mapstructure:"election_timeout"`
-	CommitTimeout     time.Duration `mapstructure:"commit_timeout"`
-	SnapshotInterval  time.Duration `mapstructure:"snapshot_interval"`
-	SnapshotThreshold uint64        `mapstructure:"snapshot_threshold"`
-	TrailingLogs      uint64        `mapstructure:"trailing_logs"`
+	MaxPool            int           `mapstructure:"max_pool"`
+	Timeout            time.Duration `mapstructure:"timeout"`
+	SnapshotsToRetain  int           `mapstructure:"snapshots_to_retain"`
+	LeaderLeaseTimeout time.Duration `mapstructure:"leader_lease_timeout"`
+	HeartbeatTimeout   time.Duration `mapstructure:"heartbeat_timeout"`
+	ElectionTimeout    time.Duration `mapstructure:"election_timeout"`
+	CommitTimeout      time.Duration `mapstructure:"commit_timeout"`
+	SnapshotInterval   time.Duration `mapstructure:"snapshot_interval"`
+	SnapshotThreshold  uint64        `mapstructure:"snapshot_threshold"`
+	TrailingLogs       uint64        `mapstructure:"trailing_logs"`
 }
 
 type ClusterConfig struct {
@@ -63,6 +64,7 @@ func Load() (*Config, error) {
 	v.BindEnv("raft.max_pool", "ZETRA_RAFT_MAX_POOL")
 	v.BindEnv("raft.timeout", "ZETRA_RAFT_TIMEOUT")
 	v.BindEnv("raft.snapshots_to_retain", "ZETRA_RAFT_SNAPSHOTS_TO_RETAIN")
+	v.BindEnv("raft.heartbeat_timeout", "ZETRA_RAFT_LEADER_LEASE_TIMEOUT")
 	v.BindEnv("raft.heartbeat_timeout", "ZETRA_RAFT_HEARTBEAT_TIMEOUT")
 	v.BindEnv("raft.election_timeout", "ZETRA_RAFT_ELECTION_TIMEOUT")
 	v.BindEnv("raft.commit_timeout", "ZETRA_RAFT_COMMIT_TIMEOUT")
@@ -78,8 +80,9 @@ func Load() (*Config, error) {
 	v.SetDefault("raft.max_pool", 3)
 	v.SetDefault("raft.timeout", "10s")
 	v.SetDefault("raft.snapshots_to_retain", 2)
-	v.SetDefault("raft.heartbeat_timeout", "150ms")
-	v.SetDefault("raft.election_timeout", "150ms")
+	v.SetDefault("raft.leader_lease_timeout", "100ms")
+	v.SetDefault("raft.heartbeat_timeout", "200ms")
+	v.SetDefault("raft.election_timeout", "200ms")
 	v.SetDefault("raft.commit_timeout", "50ms")
 	v.SetDefault("raft.snapshot_interval", "120s")
 	v.SetDefault("raft.snapshot_threshold", 8192)
