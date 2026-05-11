@@ -1,8 +1,7 @@
 package server
 
 import (
-	"encoding/json"
-	"log/slog"
+	"errors"
 	"net/http"
 )
 
@@ -16,27 +15,33 @@ type KeyStoreInsertRequest struct {
 	Value string `json:"value"`
 }
 
+func (r KeyStoreInsertRequest) Validate() error {
+	if r.Key == "" {
+		return errors.New("key not set")
+	}
+
+	return nil
+}
+
 func applyApiHandlers(mux *http.ServeMux, hs *HTTPServer) {
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("GET /store/{key}", hs.getValue)
-	apiMux.HandleFunc("POST /store", hs.insertValue)
-	apiMux.HandleFunc("DELETE /store/{key}", hs.deleteValue)
+	apiMux.HandleFunc("GET /store/{key}", HandleNoBody(hs.getValue))
+	apiMux.HandleFunc("POST /store", Handle(hs.insertValue))
+	apiMux.HandleFunc("DELETE /store/{key}", HandleNoBody(hs.deleteValue))
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiMux))
 }
 
-func (hs *HTTPServer) getValue(rw http.ResponseWriter, request *http.Request) {
-	key := request.PathValue("key")
+func (hs *HTTPServer) getValue(rw http.ResponseWriter, r *http.Request) error {
+	key := r.PathValue("key")
 
 	if key == "" {
-		http.Error(rw, "key not set", http.StatusBadRequest)
-		return
+		return NewHTTPError(http.StatusBadRequest, "key not set")
 	}
 
 	value, ok := hs.store.Get(key)
 	if !ok {
-		http.Error(rw, "not found", http.StatusNotFound)
-		return
+		return NewHTTPError(http.StatusNotFound, "not found")
 	}
 
 	resp := KeyStoreGetResponse{
@@ -44,46 +49,31 @@ func (hs *HTTPServer) getValue(rw http.ResponseWriter, request *http.Request) {
 		Value: value,
 	}
 
-	data, err := json.Marshal(resp)
-	if err != nil {
-		http.Error(rw, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-	if _, err := rw.Write(data); err != nil {
-		slog.Error("failed to write response", "error", err)
-	}
+	return WriteJSON(rw, http.StatusOK, resp)
 }
 
-func (hs *HTTPServer) insertValue(rw http.ResponseWriter, request *http.Request) {
-	var req KeyStoreInsertRequest
-
-	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
-		http.Error(rw, "body incorrectly formatted", http.StatusBadRequest)
-		return
-	}
-
+func (hs *HTTPServer) insertValue(rw http.ResponseWriter, r *http.Request, req KeyStoreInsertRequest) error {
 	if err := hs.store.Set(req.Key, req.Value); err != nil {
-		http.Error(rw, "failed to set the value for the specified key", http.StatusBadRequest)
-		return
+		return NewHTTPError(http.StatusBadRequest, "failed to set the given value")
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+
+	return nil
 }
 
-func (hs *HTTPServer) deleteValue(rw http.ResponseWriter, request *http.Request) {
+func (hs *HTTPServer) deleteValue(rw http.ResponseWriter, request *http.Request) error {
 	key := request.PathValue("key")
 
 	if key == "" {
-		http.Error(rw, "key not set", http.StatusBadRequest)
-		return
+		return NewHTTPError(http.StatusBadRequest, "key not set")
 	}
 
 	if err := hs.store.Delete(key); err != nil {
-		http.Error(rw, "failed to delete key", http.StatusBadRequest)
+		return NewHTTPError(http.StatusBadRequest, "failed to delete key")
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+
+	return nil
 }
