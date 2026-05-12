@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/LjungErik/zetra-kv-store/internal/config"
+	"github.com/LjungErik/zetra-kv-store/internal/proxy"
 	raft_internal "github.com/LjungErik/zetra-kv-store/internal/raft"
 	"github.com/LjungErik/zetra-kv-store/internal/server"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
@@ -85,9 +86,15 @@ func main() {
 		raft_internal.WatchEvents(ctx, raftInstance)
 	}()
 
+	p := proxy.NewProxy(
+		proxy.WithUseTLS(cfg.Node.ProxyUseTLS),
+	)
+
 	httpServer := server.NewServer(server.Config{
 		Addr:  cfg.Node.HTTPAddr,
 		Store: kvstore,
+		Proxy: p,
+		Raft:  raftInstance,
 	})
 
 	slog.Info("starting http server", "addr", cfg.Node.HTTPAddr)

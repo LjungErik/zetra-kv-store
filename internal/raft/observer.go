@@ -7,8 +7,6 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-// WatchEvents observes high-level raft events (state changes, leader elections,
-// peer membership) and logs them as structured JSON. Runs until ctx is cancelled.
 func WatchEvents(ctx context.Context, r *raft.Raft) {
 	ch := make(chan raft.Observation, 32)
 	obs := raft.NewObserver(ch, false, nil)

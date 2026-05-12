@@ -25,9 +25,10 @@ func (r KeyStoreInsertRequest) Validate() error {
 
 func applyApiHandlers(mux *http.ServeMux, hs *HTTPServer) {
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("GET /store/{key}", HandleNoBody(hs.getValue))
-	apiMux.HandleFunc("POST /store", Handle(hs.insertValue))
-	apiMux.HandleFunc("DELETE /store/{key}", HandleNoBody(hs.deleteValue))
+	apiMux.Handle("GET /store/{key}", HandleNoBody(hs.getValue))
+
+	apiMux.Handle("POST /store", hs.leaderProxy(Handle(hs.insertValue)))
+	apiMux.Handle("DELETE /store/{key}", hs.leaderProxy(HandleNoBody(hs.deleteValue)))
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiMux))
 }

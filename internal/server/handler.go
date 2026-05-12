@@ -28,8 +28,8 @@ type HandlerFunc[T any] func(w http.ResponseWriter, r *http.Request, body T) err
 
 type HandlerFuncNoBody func(w http.ResponseWriter, r *http.Request) error
 
-func Handle[T Validator](fn HandlerFunc[T]) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Handle[T Validator](fn HandlerFunc[T]) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body T
 
 		if r.Body == nil || r.ContentLength == 0 {
@@ -51,15 +51,15 @@ func Handle[T Validator](fn HandlerFunc[T]) http.HandlerFunc {
 		if err := fn(w, r, body); err != nil {
 			handleError(w, err)
 		}
-	}
+	})
 }
 
-func HandleNoBody(fn HandlerFuncNoBody) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func HandleNoBody(fn HandlerFuncNoBody) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := fn(w, r); err != nil {
 			handleError(w, err)
 		}
-	}
+	})
 }
 
 func handleError(w http.ResponseWriter, err error) {

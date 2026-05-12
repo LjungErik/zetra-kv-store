@@ -19,6 +19,7 @@ type NodeConfig struct {
 	RaftAdvertiseAddr string `mapstructure:"raft_advertise_addr"`
 	HTTPAddr          string `mapstructure:"http_addr"`
 	DataDir           string `mapstructure:"data_dir"`
+	ProxyUseTLS       bool   `mapstructure:"proxy_use_tls"`
 }
 
 type RaftConfig struct {
@@ -77,6 +78,7 @@ func Load() (*Config, error) {
 	v.SetDefault("node.raft_advertise_addr", "")
 	v.SetDefault("node.http_addr", "0.0.0.0:8081")
 	v.SetDefault("node.data_dir", "/tmp/node-data")
+	v.SetDefault("node.proxy_use_tls", false)
 	v.SetDefault("raft.max_pool", 3)
 	v.SetDefault("raft.timeout", "10s")
 	v.SetDefault("raft.snapshots_to_retain", 2)

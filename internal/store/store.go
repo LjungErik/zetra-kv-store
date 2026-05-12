@@ -49,7 +49,7 @@ func (r *RaftKVStore) Get(key string) (string, bool) {
 
 func (r *RaftKVStore) Set(key string, value string) error {
 	if r.raft.State() != raft.Leader {
-		return fmt.Errorf("not leader")
+		return fmt.Errorf("not leader: %s", r.raft.Leader())
 	}
 
 	cmd, err := json.Marshal(raft_internal.Command{Op: raft_internal.OpSet, Key: key, Value: value})

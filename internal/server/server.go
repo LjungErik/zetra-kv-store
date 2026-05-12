@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/LjungErik/zetra-kv-store/internal/proxy"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
+	"github.com/hashicorp/raft"
 )
 
 const (
@@ -21,6 +23,8 @@ type Server interface {
 type Config struct {
 	Addr         string
 	Store        store.KVStore
+	Proxy        proxy.Proxy
+	Raft         *raft.Raft
 	ReadTimeout  *time.Duration
 	WriteTimeout *time.Duration
 }
@@ -28,6 +32,8 @@ type Config struct {
 type HTTPServer struct {
 	store  store.KVStore
 	server *http.Server
+	raft   *raft.Raft
+	proxy  proxy.Proxy
 }
 
 var _ Server = (*HTTPServer)(nil)
@@ -53,6 +59,8 @@ func NewServer(cfg Config) *HTTPServer {
 	hs := &HTTPServer{
 		store:  cfg.Store,
 		server: server,
+		proxy:  cfg.Proxy,
+		raft:   cfg.Raft,
 	}
 
 	applyApiHandlers(mux, hs)
