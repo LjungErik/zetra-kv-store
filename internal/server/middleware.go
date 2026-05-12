@@ -1,21 +1,20 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
-
-	"github.com/hashicorp/raft"
 )
 
 func (hs *HTTPServer) leaderProxy(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if hs.raft.State() == raft.Leader {
+		slog.Info("Trying to check if it is leader", "is_leader", hs.raft.IsLeaderNode())
+
+		if hs.raft.IsLeaderNode() {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		leaderAddr := hs.raft.Leader()
-
-		if err := hs.proxy.ProxyRequest(w, r, leaderAddr); err != nil {
+		if err := hs.proxy.ProxyRequest(w, r, hs.raft.GetLeadersRestAddress()); err != nil {
 			handleError(w, err)
 		}
 	})

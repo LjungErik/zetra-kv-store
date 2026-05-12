@@ -1,17 +1,59 @@
 package raft
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path"
 
+	"github.com/LjungErik/zetra-kv-store/internal/config"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
-func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server, fsm raft.FSM, cfg SetupConfig) (*raft.Raft, error) {
+type Raft struct {
+	*raft.Raft
+	peers map[string]config.Peer
+}
+
+func SetupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []config.Peer, fsm raft.FSM, cfg SetupConfig) (*Raft, error) {
+	peersMap := make(map[string]config.Peer, len(peers))
+	servers := make([]raft.Server, len(peers))
+
+	for i, peer := range peers {
+		peersMap[peer.ID] = peer
+		servers[i] = raft.Server{
+			ID:      raft.ServerID(peer.ID),
+			Address: raft.ServerAddress(peer.Address),
+		}
+	}
+
+	raft, err := setupRaft(id, bindAddr, advertiseAddr, dataDir, servers, fsm, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup raft: %w", err)
+	}
+
+	return &Raft{
+		Raft:  raft,
+		peers: peersMap,
+	}, nil
+}
+
+func (r *Raft) IsLeaderNode() bool {
+	return r.State() == raft.Leader
+}
+
+func (r *Raft) GetLeadersRestAddress() string {
+	_, leaderID := r.LeaderWithID()
+
+	peer := r.peers[string(leaderID)]
+
+	return peer.RestAddress
+}
+
+func setupRaft(id, bindAddr, advertiseAddr, dataDir string, peers []raft.Server, fsm raft.FSM, cfg SetupConfig) (*raft.Raft, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return nil, err
 	}

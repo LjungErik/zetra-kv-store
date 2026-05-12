@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-func WatchEvents(ctx context.Context, r *raft.Raft) {
+func WatchEvents(ctx context.Context, r *Raft) {
 	ch := make(chan raft.Observation, 32)
 	obs := raft.NewObserver(ch, false, nil)
 	r.RegisterObserver(obs)

@@ -1,34 +1,17 @@
 package server
 
 import (
-	"errors"
 	"net/http"
+
+	"github.com/LjungErik/zetra-kv-store/internal/server/models"
 )
-
-type KeyStoreGetResponse struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type KeyStoreInsertRequest struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-func (r KeyStoreInsertRequest) Validate() error {
-	if r.Key == "" {
-		return errors.New("key not set")
-	}
-
-	return nil
-}
 
 func applyApiHandlers(mux *http.ServeMux, hs *HTTPServer) {
 	apiMux := http.NewServeMux()
 	apiMux.Handle("GET /store/{key}", HandleNoBody(hs.getValue))
 
 	apiMux.Handle("POST /store", hs.leaderProxy(Handle(hs.insertValue)))
-	apiMux.Handle("DELETE /store/{key}", hs.leaderProxy(HandleNoBody(hs.deleteValue)))
+	apiMux.Handle("DELETE /store", hs.leaderProxy(Handle(hs.deleteValue)))
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiMux))
 }
@@ -45,7 +28,7 @@ func (hs *HTTPServer) getValue(rw http.ResponseWriter, r *http.Request) error {
 		return NewHTTPError(http.StatusNotFound, "not found")
 	}
 
-	resp := KeyStoreGetResponse{
+	resp := models.KeyStoreGetResponse{
 		Key:   key,
 		Value: value,
 	}
@@ -53,7 +36,7 @@ func (hs *HTTPServer) getValue(rw http.ResponseWriter, r *http.Request) error {
 	return WriteJSON(rw, http.StatusOK, resp)
 }
 
-func (hs *HTTPServer) insertValue(rw http.ResponseWriter, r *http.Request, req KeyStoreInsertRequest) error {
+func (hs *HTTPServer) insertValue(rw http.ResponseWriter, r *http.Request, req models.KeyStoreInsertRequest) error {
 	if err := hs.store.Set(req.Key, req.Value); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "failed to set the given value")
 	}
@@ -63,14 +46,8 @@ func (hs *HTTPServer) insertValue(rw http.ResponseWriter, r *http.Request, req K
 	return nil
 }
 
-func (hs *HTTPServer) deleteValue(rw http.ResponseWriter, request *http.Request) error {
-	key := request.PathValue("key")
-
-	if key == "" {
-		return NewHTTPError(http.StatusBadRequest, "key not set")
-	}
-
-	if err := hs.store.Delete(key); err != nil {
+func (hs *HTTPServer) deleteValue(rw http.ResponseWriter, request *http.Request, req models.KeyStoreDeleteRequest) error {
+	if err := hs.store.Delete(req.Key); err != nil {
 		return NewHTTPError(http.StatusBadRequest, "failed to delete key")
 	}
 

@@ -24,7 +24,7 @@ type KVStore interface {
 type RaftKVStore struct {
 	mu   sync.RWMutex
 	data map[string]string
-	raft *raft.Raft
+	raft *raft_internal.Raft
 }
 
 var _ raft.FSM = (*RaftKVStore)(nil)
@@ -36,7 +36,7 @@ func NewKVStore() *RaftKVStore {
 	}
 }
 
-func (r *RaftKVStore) SetRaft(raft *raft.Raft) {
+func (r *RaftKVStore) SetRaft(raft *raft_internal.Raft) {
 	r.raft = raft
 }
 
@@ -48,7 +48,7 @@ func (r *RaftKVStore) Get(key string) (string, bool) {
 }
 
 func (r *RaftKVStore) Set(key string, value string) error {
-	if r.raft.State() != raft.Leader {
+	if !r.raft.IsLeaderNode() {
 		return fmt.Errorf("not leader: %s", r.raft.Leader())
 	}
 
@@ -61,7 +61,7 @@ func (r *RaftKVStore) Set(key string, value string) error {
 }
 
 func (r *RaftKVStore) Delete(key string) error {
-	if r.raft.State() != raft.Leader {
+	if !r.raft.IsLeaderNode() {
 		return fmt.Errorf("not leader")
 	}
 

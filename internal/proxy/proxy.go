@@ -43,7 +43,9 @@ func (p *proxy) ProxyRequest(rw http.ResponseWriter, req *http.Request, proxyToA
 
 	client := &http.Client{}
 
-	url := fmt.Sprintf("%s://%s%s", p.getProtocol(), proxyToAddr, req.URL.RequestURI())
+	url := fmt.Sprintf("%s://%s%s", p.getProtocol(), proxyToAddr, req.RequestURI)
+
+	slog.Info("sending proxy request", "url", url)
 
 	proxyReq, err := http.NewRequestWithContext(req.Context(), req.Method, url, req.Body)
 	if err != nil {

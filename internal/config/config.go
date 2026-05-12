@@ -9,8 +9,9 @@ import (
 )
 
 type Peer struct {
-	ID      string `mapstructure:"id"`
-	Address string `mapstructure:"address"`
+	ID          string `mapstructure:"id"`
+	Address     string `mapstructure:"address"`
+	RestAddress string `mapstructure:"rest_address"`
 }
 
 type NodeConfig struct {

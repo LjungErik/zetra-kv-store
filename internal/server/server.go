@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/LjungErik/zetra-kv-store/internal/proxy"
+	raft_internal "github.com/LjungErik/zetra-kv-store/internal/raft"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
-	"github.com/hashicorp/raft"
 )
 
 const (
@@ -24,7 +24,7 @@ type Config struct {
 	Addr         string
 	Store        store.KVStore
 	Proxy        proxy.Proxy
-	Raft         *raft.Raft
+	Raft         *raft_internal.Raft
 	ReadTimeout  *time.Duration
 	WriteTimeout *time.Duration
 }
@@ -32,7 +32,7 @@ type Config struct {
 type HTTPServer struct {
 	store  store.KVStore
 	server *http.Server
-	raft   *raft.Raft
+	raft   *raft_internal.Raft
 	proxy  proxy.Proxy
 }
 

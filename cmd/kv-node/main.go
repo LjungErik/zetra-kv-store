@@ -15,7 +15,6 @@ import (
 	raft_internal "github.com/LjungErik/zetra-kv-store/internal/raft"
 	"github.com/LjungErik/zetra-kv-store/internal/server"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
-	"github.com/hashicorp/raft"
 )
 
 func main() {
@@ -37,14 +36,6 @@ func main() {
 
 	kvstore := store.NewKVStore()
 
-	peers := make([]raft.Server, len(cfg.Cluster.Peers))
-	for i, p := range cfg.Cluster.Peers {
-		peers[i] = raft.Server{
-			ID:      raft.ServerID(p.ID),
-			Address: raft.ServerAddress(p.Address),
-		}
-	}
-
 	raftCfg := raft_internal.SetupConfig{
 		MaxPool:            cfg.Raft.MaxPool,
 		Timeout:            cfg.Raft.Timeout,
@@ -65,7 +56,7 @@ func main() {
 		cfg.Node.RaftBindAddr,
 		cfg.Node.RaftAdvertiseAddr,
 		cfg.Node.DataDir,
-		peers,
+		cfg.Cluster.Peers,
 		kvstore,
 		raftCfg,
 	)
