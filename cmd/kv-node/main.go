@@ -81,14 +81,19 @@ func main() {
 		proxy.WithUseTLS(cfg.Node.ProxyUseTLS),
 	)
 
-	httpServer := server.NewServer(server.Config{
-		Addr:  cfg.Node.HTTPAddr,
-		Store: kvstore,
-		Proxy: p,
-		Raft:  raftInstance,
-	})
+	restAPI := server.NewServer(
+		server.WithStore(kvstore),
+		server.WithRaft(raftInstance),
+		server.WithProxy(p),
+	)
 
-	slog.Info("starting http server", "addr", cfg.Node.HTTPAddr)
+	httpServer := &http.Server{
+		Addr:         cfg.Node.HTTPAddr,
+		Handler:      restAPI.Routes(),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
 	wg.Add(1)
 	go func() {

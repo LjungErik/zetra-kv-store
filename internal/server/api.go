@@ -1,31 +1,25 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/LjungErik/zetra-kv-store/internal/server/models"
+	"github.com/gin-gonic/gin"
 )
 
-func applyApiHandlers(mux *http.ServeMux, hs *HTTPServer) {
-	apiMux := http.NewServeMux()
-	apiMux.Handle("GET /store/{key}", HandleNoBody(hs.getValue))
-
-	apiMux.Handle("POST /store", hs.leaderProxy(Handle(hs.insertValue)))
-	apiMux.Handle("DELETE /store", hs.leaderProxy(Handle(hs.deleteValue)))
-
-	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiMux))
-}
-
-func (hs *HTTPServer) getValue(rw http.ResponseWriter, r *http.Request) error {
-	key := r.PathValue("key")
+func (s *Server) getValue(ctx *gin.Context) {
+	key := ctx.Param("key")
 
 	if key == "" {
-		return NewHTTPError(http.StatusBadRequest, "key not set")
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "key not set"})
+		return
 	}
 
-	value, ok := hs.store.Get(key)
+	value, ok := s.store.Get(key)
 	if !ok {
-		return NewHTTPError(http.StatusNotFound, "not found")
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "key not found"})
+		return
 	}
 
 	resp := models.KeyStoreGetResponse{
@@ -33,25 +27,47 @@ func (hs *HTTPServer) getValue(rw http.ResponseWriter, r *http.Request) error {
 		Value: value,
 	}
 
-	return WriteJSON(rw, http.StatusOK, resp)
+	ctx.JSON(http.StatusOK, resp)
 }
 
-func (hs *HTTPServer) insertValue(rw http.ResponseWriter, r *http.Request, req models.KeyStoreInsertRequest) error {
-	if err := hs.store.Set(req.Key, req.Value); err != nil {
-		return NewHTTPError(http.StatusBadRequest, "failed to set the given value")
+func (s *Server) insertValue(ctx *gin.Context) {
+	var req models.KeyStoreInsertRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		slog.Error("failed to parse json", "error", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	if err := req.Validate(); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	return nil
+	if err := s.store.Set(req.Key, req.Value); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "unable to store value for key"})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
-func (hs *HTTPServer) deleteValue(rw http.ResponseWriter, request *http.Request, req models.KeyStoreDeleteRequest) error {
-	if err := hs.store.Delete(req.Key); err != nil {
-		return NewHTTPError(http.StatusBadRequest, "failed to delete key")
+func (s *Server) deleteValue(ctx *gin.Context) {
+	var req models.KeyStoreDeleteRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		slog.Error("failed to parse json", "error", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
 	}
 
-	rw.WriteHeader(http.StatusNoContent)
+	if err := req.Validate(); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	return nil
+	if err := s.store.Delete(req.Key); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "unable to delete key"})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }

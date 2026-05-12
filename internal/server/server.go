@@ -1,77 +1,60 @@
 package server
 
 import (
-	"context"
 	"net/http"
-	"time"
 
 	"github.com/LjungErik/zetra-kv-store/internal/proxy"
 	raft_internal "github.com/LjungErik/zetra-kv-store/internal/raft"
 	"github.com/LjungErik/zetra-kv-store/internal/store"
+	"github.com/gin-gonic/gin"
 )
 
-const (
-	defaultReadTimeout  = 5 * time.Second
-	defaultWriteTimeout = 5 * time.Second
-)
-
-type Server interface {
-	ListenAndServe() error
-	Shutdown(context.Context) error
+type Server struct {
+	store store.KVStore
+	raft  *raft_internal.Raft
+	proxy proxy.Proxy
 }
 
-type Config struct {
-	Addr         string
-	Store        store.KVStore
-	Proxy        proxy.Proxy
-	Raft         *raft_internal.Raft
-	ReadTimeout  *time.Duration
-	WriteTimeout *time.Duration
+type Option func(*Server)
+
+func WithStore(store store.KVStore) Option {
+	return func(s *Server) {
+		s.store = store
+	}
 }
 
-type HTTPServer struct {
-	store  store.KVStore
-	server *http.Server
-	raft   *raft_internal.Raft
-	proxy  proxy.Proxy
+func WithRaft(raft *raft_internal.Raft) Option {
+	return func(s *Server) {
+		s.raft = raft
+	}
 }
 
-var _ Server = (*HTTPServer)(nil)
+func WithProxy(proxy proxy.Proxy) Option {
+	return func(s *Server) {
+		s.proxy = proxy
+	}
+}
 
-func NewServer(cfg Config) *HTTPServer {
-	mux := http.NewServeMux()
+func NewServer(options ...Option) *Server {
+	s := &Server{}
 
-	server := &http.Server{
-		Addr:         cfg.Addr,
-		Handler:      mux,
-		ReadTimeout:  defaultReadTimeout,
-		WriteTimeout: defaultWriteTimeout,
+	for _, opt := range options {
+		opt(s)
 	}
 
-	if cfg.ReadTimeout != nil {
-		server.ReadTimeout = *cfg.ReadTimeout
-	}
-
-	if cfg.WriteTimeout != nil {
-		server.WriteTimeout = *cfg.WriteTimeout
-	}
-
-	hs := &HTTPServer{
-		store:  cfg.Store,
-		server: server,
-		proxy:  cfg.Proxy,
-		raft:   cfg.Raft,
-	}
-
-	applyApiHandlers(mux, hs)
-
-	return hs
+	return s
 }
 
-func (hs *HTTPServer) ListenAndServe() error {
-	return hs.server.ListenAndServe()
-}
+func (s *Server) Routes() http.Handler {
+	router := gin.Default()
 
-func (hs *HTTPServer) Shutdown(ctx context.Context) error {
-	return hs.server.Shutdown(ctx)
+	apiReader := router.Group("/api/v1")
+	apiReader.GET("/store/:key", s.getValue)
+
+	apiWriter := router.Group("/api/v1")
+	apiWriter.Use(s.leaderProxy())
+	apiWriter.POST("/store", s.insertValue)
+	apiWriter.DELETE("/store", s.deleteValue)
+
+	return router
 }

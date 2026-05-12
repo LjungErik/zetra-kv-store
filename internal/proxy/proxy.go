@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Proxy interface {
-	ProxyRequest(rw http.ResponseWriter, r *http.Request, proxyToAddr string) error
+	ProxyRequest(ctx *gin.Context, proxyToAddr string) error
 }
 
 type proxy struct {
@@ -38,7 +40,9 @@ func NewProxy(options ...Option) *proxy {
 	return p
 }
 
-func (p *proxy) ProxyRequest(rw http.ResponseWriter, req *http.Request, proxyToAddr string) error {
+func (p *proxy) ProxyRequest(ctx *gin.Context, proxyToAddr string) error {
+	req := ctx.Request
+	rw := ctx.Writer
 	slog.Debug("Proxy forwarding request", "remote_address", req.RemoteAddr, "method", req.Method, "url", req.URL)
 
 	client := &http.Client{}
@@ -65,10 +69,12 @@ func (p *proxy) ProxyRequest(rw http.ResponseWriter, req *http.Request, proxyToA
 
 	defer resp.Body.Close()
 
+	slog.Info("Well this worked, just wonder why")
+
 	copyHeader(rw.Header(), resp.Header)
 	rw.WriteHeader(resp.StatusCode)
 	if _, err := io.Copy(rw, resp.Body); err != nil {
-		return fmt.Errorf("failed to write to response writer")
+		return fmt.Errorf("failed to write to response writer: %w", err)
 	}
 
 	return nil

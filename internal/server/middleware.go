@@ -3,19 +3,22 @@ package server
 import (
 	"log/slog"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-func (hs *HTTPServer) leaderProxy(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Trying to check if it is leader", "is_leader", hs.raft.IsLeaderNode())
-
-		if hs.raft.IsLeaderNode() {
-			next.ServeHTTP(w, r)
+func (s *Server) leaderProxy() gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if s.raft.IsLeaderNode() {
+			slog.Info("Inside the leader")
+			ctx.Next()
 			return
 		}
 
-		if err := hs.proxy.ProxyRequest(w, r, hs.raft.GetLeadersRestAddress()); err != nil {
-			handleError(w, err)
+		ctx.Abort()
+
+		if err := s.proxy.ProxyRequest(ctx, s.raft.GetLeadersRestAddress()); err != nil {
+			ctx.JSON(http.StatusGatewayTimeout, gin.H{"error": "failed to forward request to leader"})
 		}
-	})
+	}
 }
